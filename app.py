@@ -13,26 +13,27 @@ geolocator = Nominatim(user_agent="replabalor_app")
 def get_location_from_exif(uploaded_file):
     """Fotoğrafın EXIF verisinden konumu çıkar"""
     try:
-        # UploadedFile'dan bytes oku
         img_bytes = uploaded_file.getvalue()
         tags = exifread.process_file(BytesIO(img_bytes))
         
-        # GPS koordinatlarını işle
         gps_latitude = tags.get('GPS GPSLatitude')
         gps_longitude = tags.get('GPS GPSLongitude')
-        gps_latitude_ref = tags.get('GPS GPSLatitudeRef')
-        gps_longitude_ref = tags.get('GPS GPSLongitudeRef')
+        gps_latitude_ref = tags.get('GPS GPSLatitudeRef', 'N')
+        gps_longitude_ref = tags.get('GPS GPSLongitudeRef', 'E')
 
-        if all([gps_latitude, gps_longitude, gps_latitude_ref, gps_longitude_ref]):
-            # Koordinatları ondalık dereceye çevir
-            lat = sum([float(rat.num)/float(rat.den) for rat in gps_latitude.values]) / len(gps_latitude.values)
-            lon = sum([float(rat.num)/float(rat.den) for rat in gps_longitude.values]) / len(gps_longitude.values)
+        if all([gps_latitude, gps_longitude]):
+            # Derece, Dakika, Saniye'yi ondalık dereceye çevir
+            def dms_to_decimal(dms, ref):
+                degrees = dms.values[0].num / dms.values[0].den
+                minutes = dms.values[1].num / dms.values[1].den
+                seconds = dms.values[2].num / dms.values[2].den
+                decimal = degrees + (minutes / 60) + (seconds / 3600)
+                return decimal if ref in ['N', 'E'] else -decimal
             
-            # Referanslara göre işaret ayarı
-            lat = lat if gps_latitude_ref.values == 'N' else -lat
-            lon = lon if gps_longitude_ref.values == 'E' else -lon
+            lat = dms_to_decimal(gps_latitude, str(gps_latitude_ref))
+            lon = dms_to_decimal(gps_longitude, str(gps_longitude_ref))
             
-            return f"{lat}, {lon}"
+            return f"{lat:.6f}, {lon:.6f}"
         return None
         
     except Exception as e:
