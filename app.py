@@ -68,13 +68,13 @@ def get_gps_coordinates():
     async function main() {
         try {
             const coords = await getLocation();
-            return {type: 'success', data: coords};
+            Streamlit.setComponentValue({type: 'success', data: coords});
         } catch (error) {
-            return {type: 'error', data: error};
+            Streamlit.setComponentValue({type: 'error', data: error});
         }
     }
 
-    return main();
+    main();
     """
 
     result = streamlit_js_eval(js_expressions=js_code, key="get_gps", debounce=0)
