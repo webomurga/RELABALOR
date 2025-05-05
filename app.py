@@ -31,17 +31,33 @@ def generate_questions(prompt, context=[]):
     return parse_questions(response.choices[0].message['content'])
 
 def get_location_from_exif(uploaded_file):
-    """Güncellenmiş konum alma fonksiyonu"""
+    """Fotoğrafın EXIF verisinden konumu çıkar"""
     try:
         img_bytes = uploaded_file.getvalue()
         tags = exifread.process_file(BytesIO(img_bytes))
         
-        # Önceki düzeltilmiş koordinat dönüşüm kodu buraya gelecek
-        # ...
+        gps_latitude = tags.get('GPS GPSLatitude')
+        gps_longitude = tags.get('GPS GPSLongitude')
+        gps_latitude_ref = tags.get('GPS GPSLatitudeRef', 'N')
+        gps_longitude_ref = tags.get('GPS GPSLongitudeRef', 'E')
+
+        if all([gps_latitude, gps_longitude]):
+            # Derece, Dakika, Saniye'yi ondalık dereceye çevir
+            def dms_to_decimal(dms, ref):
+                degrees = dms.values[0].num / dms.values[0].den
+                minutes = dms.values[1].num / dms.values[1].den
+                seconds = dms.values[2].num / dms.values[2].den
+                decimal = degrees + (minutes / 60) + (seconds / 3600)
+                return decimal if ref in ['N', 'E'] else -decimal
+            
+            lat = dms_to_decimal(gps_latitude, str(gps_latitude_ref))
+            lon = dms_to_decimal(gps_longitude, str(gps_longitude_ref))
+            
+            return f"{lat:.6f}, {lon:.6f}"
+        return None
         
-        return f"{lat:.6f}, {lon:.6f}"
     except Exception as e:
-        st.error(f"Hata: {str(e)}")
+        st.error(f"EXIF okuma hatası: {str(e)}")
         return None
 
 # Session state initialization
