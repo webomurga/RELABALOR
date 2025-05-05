@@ -71,6 +71,11 @@ def generate_gpt_response(prompt, context=[]):
 st.title("📸 RELABALOR - Burası Neresi?")
 st.subheader("Fotoğrafını yükle, neredesin söyleyelim! Üstüne bir de sana özel sorularla muhabbet edelim 😎")
 
+st.set_page_config(
+    page_title="RELABALOR - Neresi Burası?",
+    page_icon="📸"
+)
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -85,6 +90,9 @@ if uploaded_file:
         initial_questions = generate_gpt_response(
             f"{context} konumuna özel 3 tane kültürel ya da turistik soru üret. Madde madde olsun lütfen."
         )
+
+        image_bytes = uploaded_file.getvalue()
+        image_md = f"![Yüklediğin fotoğraf](data:image/jpeg;base64,{image_bytes.hex()})"
         
         st.session_state.messages.append({
             "role": "assistant",
