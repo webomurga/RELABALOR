@@ -1,41 +1,48 @@
 import streamlit as st
 from PIL import Image
-import openai
-import os
-import json
 import piexif
 import base64
 from io import BytesIO
+import openai
+import os
+import json
 
-# OpenAI API configuration
+# OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
-# Sistem başlatma
-st.set_page_config(page_title="RELABALOR", page_icon="🌍")
-st.title("Yöresel Rehber 🌍")
-st.markdown("Konumunu algıla, yöresel bilgileri keşfet!")
-
-# Fotoğrafı yükleme
-uploaded_file = st.file_uploader("Görsel yükle", type=["jpg", "jpeg", "png"])
 
 # EXIF metadata'dan konum bilgisi almayı deneyen fonksiyon
 def get_location_from_exif(image):
     try:
+        # EXIF verisini almak
         exif_data = piexif.load(image)
         gps_info = exif_data.get("GPS", {})
+
+        # GPS verisi mevcutsa
         if gps_info:
             latitude = gps_info.get(piexif.GPSIFD.GPSLatitude)
             longitude = gps_info.get(piexif.GPSIFD.GPSLongitude)
+
+            # Latitude ve Longitude mevcutsa, derece, dakika, saniye formatını ondalıklı sayıya çevir
             if latitude and longitude:
-                # Derece, dakika, saniyeyi decimal formata çevirme
                 lat = (latitude[0][0] + latitude[1][0] / 60 + latitude[2][0] / 3600)
                 lon = (longitude[0][0] + longitude[1][0] / 60 + longitude[2][0] / 3600)
+
+                lat_ref = gps_info.get(piexif.GPSIFD.GPSLatitudeRef)
+                lon_ref = gps_info.get(piexif.GPSIFD.GPSLongitudeRef)
+
+                # Konumun doğruluğu için, koordinatları pozitif/negatif yapmak
+                if lat_ref != "N":
+                    lat = -lat
+                if lon_ref != "E":
+                    lon = -lon
+
                 return lat, lon
+
         return None, None
     except Exception as e:
         return None, None
 
-# Fotoğrafı GPT-4o-mini'ye gönderme ve konumu çözümleme
+# GPT-4o-mini ile görselden konum çözümleme
 def get_location_from_image(image):
     try:
         # Fotoğrafı base64 formatına çevirme
@@ -54,12 +61,20 @@ def get_location_from_image(image):
                 ]
             }]
         )
-        
+
         # Yanıtı işleyip döndürme
         location_data = json.loads(response.choices[0].message.content)
         return location_data
     except Exception as e:
         return {"error": str(e)}
+
+# Streamlit UI
+st.set_page_config(page_title="RELABALOR", page_icon="🌍")
+st.title("Yöresel Rehber 🌍")
+st.markdown("Konumunu algıla, yöresel bilgileri keşfet!")
+
+# Fotoğrafı yükleme
+uploaded_file = st.file_uploader("Görsel yükle", type=["jpg", "jpeg", "png"])
 
 # Fotoğraf işlemesi
 if uploaded_file:
