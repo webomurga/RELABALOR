@@ -34,7 +34,7 @@ def get_location_from_image(image):
                         {"type": "text", "text": GEOLOCATION_PROMPT},
                         {
                             "type": "image_url",
-                            "image_url": f"data:image/png;base64,{base64_image}",
+                            "url": f"data:image/png;base64,{base64_image}",
                         },
                     ],
                 }
