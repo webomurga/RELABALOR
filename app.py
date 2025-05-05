@@ -26,7 +26,7 @@ def get_location_from_image(image):
         base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         response = openai.ChatCompletion.create(
-            model="meta-llama/llama-4-maverick:free",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "user",
@@ -49,7 +49,7 @@ def get_location_from_image(image):
 def get_response(prompt, location):
     enhanced_prompt = DIALECT_PROMPT.format(location=location) + "\n\n" + prompt
     response = openai.ChatCompletion.create(
-        model="meta-llama/llama-4-maverick:free",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "Sen Türkiye'nin yöresel diyalektlerinde konuşan bir rehbersin."},
             {"role": "user", "content": enhanced_prompt}
