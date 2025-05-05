@@ -1,34 +1,14 @@
 import streamlit as st
 import openai
+from PIL import Image
 import exifread
 import os
-import re
 from geopy.geocoders import Nominatim
 from io import BytesIO
 
 # OpenAI ve coğrafi konumlandırma ayarları
 openai.api_key = os.getenv("OPENAI_API_KEY")
 geolocator = Nominatim(user_agent="replabalor_app")
-
-def parse_questions(response_text):
-    """GPT yanıtındaki soruları çıkar"""
-    return re.findall(r'\* (.*?)(?:\n|$)', response_text)
-
-def generate_questions(prompt, context=[]):
-    """GPT ile soru listesi oluştur"""
-    messages = [
-        {"role": "system", "content": "Sadece madde işaretli sorular üret"},
-        *context,
-        {"role": "user", "content": prompt}
-    ]
-    
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        temperature=0.5,
-        max_tokens=200
-    )
-    return parse_questions(response.choices[0].message['content'])
 
 def get_location_from_exif(uploaded_file):
     """Fotoğrafın EXIF verisinden konumu çıkar"""
@@ -60,74 +40,82 @@ def get_location_from_exif(uploaded_file):
         st.error(f"EXIF okuma hatası: {str(e)}")
         return None
 
-# Session state initialization
+def get_location_details(latlon):
+    """Koordinatlardan konum detaylarını al"""
+    try:
+        location = geolocator.reverse(latlon, exactly_one=True)
+        return location.raw.get('address', {})
+    except Exception as e:
+        st.error(f"Konum bulma hatası: {str(e)}")
+        return {}
+
+def generate_gpt_response(prompt, context=[]):
+    """GPT-4o-mini ile cevap oluştur"""
+    messages = [
+        {"role": "system", "content": "Sen Türkiye'nin bölgesel dil ve kültür uzmanı bir asistansın."},
+        *context,
+        {"role": "user", "content": prompt}
+    ]
+    
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",  # Gerçek model adını kullanın
+        messages=messages,
+        temperature=0.7,
+        max_tokens=500
+    )
+    return response.choices[0].message['content']
+
+# Streamlit arayüzü
+st.title("RELABALOR - Bölgesel Asistan")
+st.subheader("Fotoğrafınızı Yükleyin, Konumunuz Belirlensin, Sorularınızı Cevaplayalım!")
+
+# Sohbet geçmişi
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "questions" not in st.session_state:
-    st.session_state.questions = []
 
-# Arayüz
-st.title("RELABALOR - Butonlu Etkileşim")
-uploaded_file = st.file_uploader("Fotoğraf Yükle", type=["jpg", "jpeg", "png"])
+# Fotoğraf yükleme
+uploaded_file = st.file_uploader("Bir fotoğraf yükleyin", type=["jpg", "jpeg", "png"])
 
-# Fotoğraf yüklendiğinde
-if uploaded_file and not st.session_state.messages:
+if uploaded_file:
+    # EXIF'den konum bilgisi
     latlon = get_location_from_exif(uploaded_file)
     if latlon:
-        location = geolocator.reverse(latlon, language="tr")
-        context = f"Konum: {location.raw.get('address', {}).get('city', 'Bilinmeyen')}"
+        location_details = get_location_details(latlon)
+        context = f"Konum: {location_details.get('city', 'Bilinmeyen')}, {location_details.get('state', 'Bilinmeyen')}"
         
-        # İlk soruları oluştur
-        st.session_state.questions = generate_questions(
-            f"Şu konum için 3 turistik soru üret: {context}. Yanıt verme, sadece soruları sırala."
+        # Otomatik başlangıç soruları
+        initial_questions = generate_gpt_response(
+            f"Şu konum için 3 tane turistik ve kültürel soru üret: {context}. Soruları madde işaretleriyle ver."
         )
         
         st.session_state.messages.append({
             "role": "assistant",
-            "content": f"**{context}**\n\nLütfen bir soru seçin:"
+            "content": f"{context}\n\n{initial_questions}"
         })
+    else:
+        st.error("Fotoğrafta konum bilgisi bulunamadı")
 
-# Mesajları göster
-for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+# Sohbet geçmişini göster
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# Butonlar için container
-button_container = st.container()
-
-# Buton etkileşimi
-if st.session_state.questions:
-    with button_container:
-        cols = st.columns(2)
-        for i, q in enumerate(st.session_state.questions):
-            if cols[i%2].button(q, key=f"btn_{i}"):
-                # Seçilen soruyu ekle
-                st.session_state.messages.append({"role": "user", "content": q})
-                
-                # GPT'den cevap al
-                response = openai.ChatCompletion.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": q}],
-                    temperature=0.7,
-                    max_tokens=500
-                )
-                answer = response.choices[0].message['content']
-                
-                # Takip sorularını oluştur
-                new_questions = generate_questions(
-                    f"Bu cevap için 2 takip sorusu üret: {answer}. Yanıt verme, sadece soruları sırala."
-                )
-                
-                # Güncellemeleri kaydet
-                st.session_state.messages.append({
-                    "role": "assistant", 
-                    "content": f"{answer}\n\n**Yeni Sorular:**"
-                })
-                st.session_state.questions = new_questions
-                st.rerun()
-
-# Kullanıcı yazı giremesin diye inputu gizle
-st.markdown("""
-<style>
-    .stChatInput {visibility: hidden; height: 0;}
-</style>
-""", unsafe_allow_html=True)
+# Kullanıcı girişi
+if prompt := st.chat_input("Sorunuzu yazın veya aşağıdaki sorulardan birini seçin"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # GPT ile cevap oluştur
+    response = generate_gpt_response(
+        prompt,
+        context=st.session_state.messages
+    )
+    
+    # Takip soruları oluştur
+    follow_up = generate_gpt_response(
+        "Bu cevap için 2 tane kısa takip sorusu üret. Sadece soruları madde işaretleriyle ver."
+    )
+    
+    full_response = f"{response}\n\n**Takip Soruları:**\n{follow_up}"
+    
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    st.rerun()
