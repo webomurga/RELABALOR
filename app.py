@@ -1,18 +1,13 @@
 import streamlit as st
-#import openai
-from openai import OpenAI
+import openai
 import os
 from PIL import Image
 import io
 import base64
 import json
 
-client = OpenAI(
-  base_url="https://openrouter.ai/api/v1",
-  api_key=os.getenv("OPENAI_API_KEY"),
-)
 # === API Anahtarı ===
-#openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # === Sistem Prompt'ları ===
 GEOLOCATION_PROMPT = """Bu görseldeki konumu Türkiye'deki bir şehir veya bölge bazında tespit et. 
@@ -30,8 +25,8 @@ def get_location_from_image(image):
         image.save(buffer, format="PNG")
         base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-        response = client.chat.completions.create(
-            model="openai/gpt-4o-2024-11-20",
+        response = openai.ChatCompletion.create(
+            model="meta-llama/llama-4-maverick:free",
             messages=[
                 {
                     "role": "user",
@@ -44,7 +39,7 @@ def get_location_from_image(image):
                     ],
                 }
             ],
-            #max_tokens=300,
+            max_tokens=300,
         )
         return json.loads(response.choices[0].message.content)
     except Exception as e:
@@ -53,8 +48,8 @@ def get_location_from_image(image):
 # === Yöresel Yanıt ===
 def get_response(prompt, location):
     enhanced_prompt = DIALECT_PROMPT.format(location=location) + "\n\n" + prompt
-    response = client.chat.completions.create(
-        model="openai/gpt-4o-2024-11-20",
+    response = openai.ChatCompletion.create(
+        model="meta-llama/llama-4-maverick:free",
         messages=[
             {"role": "system", "content": "Sen Türkiye'nin yöresel diyalektlerinde konuşan bir rehbersin."},
             {"role": "user", "content": enhanced_prompt}
