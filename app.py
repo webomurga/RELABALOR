@@ -38,7 +38,7 @@ def get_location_from_image(image):
     try:
         # Fotoğrafı GPT-4o-mini modeline gönderme
         response = openai.ChatCompletion.create(
-            model="gpt-4.0-mini",  # GPT-4o-mini kullanılacak
+            model="gpt-4o-mini",  # GPT-4o-mini kullanılacak
             messages=[{
                 "role": "user",
                 "content": [
