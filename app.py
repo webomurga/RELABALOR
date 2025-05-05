@@ -4,6 +4,8 @@ import openai
 import os
 import json
 import piexif
+import base64
+from io import BytesIO
 
 # OpenAI API configuration
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -36,14 +38,19 @@ def get_location_from_exif(image):
 # Fotoğrafı GPT-4o-mini'ye gönderme ve konumu çözümleme
 def get_location_from_image(image):
     try:
-        # Fotoğrafı GPT-4o-mini modeline gönderme
+        # Fotoğrafı base64 formatına çevirme
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+        # GPT-4o-mini'ye gönderme
         response = openai.ChatCompletion.create(
             model="gpt-4o-mini",  # GPT-4o-mini kullanılacak
             messages=[{
                 "role": "user",
                 "content": [
                     {"type": "text", "text": "Bu görseldeki konumu Türkiye'deki bir şehir veya bölge bazında tespit et."},
-                    {"type": "image_url", "image_url": f"data:image/png;base64,{image.getvalue().hex()}"}
+                    {"type": "image_url", "image_url": f"data:image/png;base64,{img_base64}"}
                 ]
             }]
         )
