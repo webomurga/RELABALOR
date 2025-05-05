@@ -63,7 +63,7 @@ def get_location_from_image(image):
 
 # Fotoğraf işlemesi
 if uploaded_file:
-    image = Image.open(uploaded_file)
+    image = Image.open(uploaded_file)  # Yüklenen dosyayı PIL.Image formatına dönüştürme
     st.image(image, caption='Yüklenen Görsel', use_column_width=True)
     
     # EXIF metadata'dan konum verisi çekmeye çalış
@@ -76,7 +76,7 @@ if uploaded_file:
     else:
         # Eğer EXIF verisinde konum yoksa, GPT-4o-mini'ye gönder
         st.warning("EXIF verisinde konum bulunamadı, GPT-4o-mini ile çözümleme yapılıyor...")
-        location_data = get_location_from_image(uploaded_file)
+        location_data = get_location_from_image(image)  # Burada image nesnesini gönderiyoruz
         
         if "location" in location_data:
             st.success(f"Konum Tespit Edildi: {location_data['location']}")
