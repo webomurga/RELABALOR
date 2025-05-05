@@ -33,12 +33,15 @@ if uploaded_file is not None:
 # Kullanıcı metni girdiyse, OpenAI API ile yanıt alma
 if user_input:
     # GPT-4o-mini modelini kullanarak API'den yanıt almak
-    response = openai.Completion.create(
-        model="gpt-4o-mini",
-        prompt=user_input,
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",  # Burada gpt-4o-mini kullanılacak
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": user_input},
+        ],
         max_tokens=150
     )
     
     # Yanıtı gösterme
     st.subheader("ChatGPT'nin Yanıtı:")
-    st.write(response.choices[0].text.strip())
+    st.write(response['choices'][0]['message']['content'].strip())
