@@ -4,34 +4,49 @@ from PIL import Image
 import exifread
 import os
 from geopy.geocoders import Nominatim
+from io import BytesIO
 
 # OpenAI ve coğrafi konumlandırma ayarları
 openai.api_key = os.getenv("OPENAI_API_KEY")
 geolocator = Nominatim(user_agent="replabalor_app")
 
-def get_location_from_exif(image_path):
+def get_location_from_exif(uploaded_file):
     """Fotoğrafın EXIF verisinden konumu çıkar"""
-    with open(image_path, 'rb') as f:
-        tags = exifread.process_file(f)
+    try:
+        # UploadedFile'dan bytes oku
+        img_bytes = uploaded_file.getvalue()
+        tags = exifread.process_file(BytesIO(img_bytes))
         
-    gps_tags = {}
-    for tag in tags:
-        if tag.startswith('GPS GPSLatitude') or tag.startswith('GPS GPSLongitude'):
-            gps_tags[tag] = tags[tag]
+        # GPS koordinatlarını işle
+        gps_latitude = tags.get('GPS GPSLatitude')
+        gps_longitude = tags.get('GPS GPSLongitude')
+        gps_latitude_ref = tags.get('GPS GPSLatitudeRef')
+        gps_longitude_ref = tags.get('GPS GPSLongitudeRef')
 
-    if gps_tags:
-        try:
-            lat = [float(x.num)/float(x.den) for x in tags['GPS GPSLatitude'].values]
-            lon = [float(x.num)/float(x.den) for x in tags['GPS GPSLongitude'].values]
-            return f"{sum(lat)/len(lat)}, {sum(lon)/len(lon)}"
-        except:
-            return None
-    return None
+        if all([gps_latitude, gps_longitude, gps_latitude_ref, gps_longitude_ref]):
+            # Koordinatları ondalık dereceye çevir
+            lat = sum([float(rat.num)/float(rat.den) for rat in gps_latitude.values]) / len(gps_latitude.values)
+            lon = sum([float(rat.num)/float(rat.den) for rat in gps_longitude.values]) / len(gps_longitude.values)
+            
+            # Referanslara göre işaret ayarı
+            lat = lat if gps_latitude_ref.values == 'N' else -lat
+            lon = lon if gps_longitude_ref.values == 'E' else -lon
+            
+            return f"{lat}, {lon}"
+        return None
+        
+    except Exception as e:
+        st.error(f"EXIF okuma hatası: {str(e)}")
+        return None
 
 def get_location_details(latlon):
     """Koordinatlardan konum detaylarını al"""
-    location = geolocator.reverse(latlon, exactly_one=True)
-    return location.raw.get('address', {})
+    try:
+        location = geolocator.reverse(latlon, exactly_one=True)
+        return location.raw.get('address', {})
+    except Exception as e:
+        st.error(f"Konum bulma hatası: {str(e)}")
+        return {}
 
 def generate_gpt_response(prompt, context=[]):
     """GPT-4o-mini ile cevap oluştur"""
