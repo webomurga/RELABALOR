@@ -2,18 +2,14 @@ import streamlit as st
 import openai
 import os
 from geopy.geocoders import Nominatim
-from PIL import Image
-import io
-import json
-from streamlit.components.v1 import html
 
 # OpenAI API configuration
 openai.api_key = os.getenv("OPENAI_API_KEY")
 geolocator = Nominatim(user_agent="RELABALOR_APP")
 
-# Function to get GPS coordinates using custom HTML + JS
+# Custom HTML + JavaScript component for GPS retrieval
 def get_gps_coordinates():
-    # Custom HTML/JS component for GPS
+    # HTML/JS code to get geolocation
     gps_code = """
     <script>
         async function getLocation() {
@@ -28,7 +24,7 @@ def get_gps_coordinates():
         async function main() {
             try {
                 const coords = await getLocation();
-                // Send back the data to Streamlit using window.parent.postMessage
+                // Sending back the data to Streamlit
                 window.parent.postMessage({type: 'success', data: coords}, '*');
             } catch (error) {
                 window.parent.postMessage({type: 'error', data: error}, '*');
@@ -39,22 +35,58 @@ def get_gps_coordinates():
     </script>
     """
 
-    # Embed the HTML/JS code inside the Streamlit app
-    html(gps_code, height=0)
-
-    # This will allow Streamlit to capture the response from JS
-    result = st.experimental_get_query_params()
-    return result
+    # Embed the HTML/JS code into Streamlit app
+    st.components.v1.html(gps_code, height=0)
 
 # Streamlit UI
 st.set_page_config(page_title="RELABALOR", page_icon="🌍")
 st.title("Yöresel Rehber 🌍")
 st.markdown("Konumunu algıla, yöresel bilgileri keşfet!")
 
-# Get GPS coordinates and display them
-if st.button("📡 GPS ile Konumumu Algıla"):
-    gps_coords = get_gps_coordinates()
-    if gps_coords:
-        st.success(f"Konumunuz: {gps_coords}")
-    else:
-        st.error("Konum alınamadı. Lütfen izinleri kontrol edin.")
+# Konum belirleme
+st.subheader("Konumunuzu Belirleyin")
+
+# GPS verilerini almak için buton
+if st.button("📡 Konumumu Al"):
+    get_gps_coordinates()
+
+# Burada kullanıcının konumunu işlemek için gerekli işlemleri yapabiliriz
+if 'location' in st.session_state:
+    st.subheader(f"🏙️ {st.session_state['location']} Özel Tavsiyeler")
+
+    # Konumla ilgili öneri oluşturma
+    suggestion = "Bu konum için 3 maddelik kısa turistik öneri listesi oluştur"
+    suggestions = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "system", "content": "Sen Türkiye'nin yerel şivelerini kullanan bir kültür rehberisin."},
+                  {"role": "user", "content": f"{st.session_state['location']}: {suggestion}"}]
+    )
+
+    for line in suggestions.choices[0].message.content.split('\n'):
+        if line.strip():
+            with st.expander(line.strip()):
+                details = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "system", "content": "Sen Türkiye'nin yerel şivelerini kullanan bir kültür rehberisin."},
+                              {"role": "user", "content": f"{line.strip()} hakkında detaylı bilgi ver"}]
+                )
+                st.write(details.choices[0].message.content)
+
+# Handle GPS success or error
+st.components.v1.html("""
+<script>
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'success') {
+            const coords = event.data.data;
+            window.parent.postMessage({type: 'location', data: coords}, '*');
+        } else if (event.data.type === 'error') {
+            window.parent.postMessage({type: 'location_error', data: event.data.data}, '*');
+        }
+    });
+</script>
+""", height=0)
+
+# Implement logic for handling GPS response in Python
+if 'location' in st.session_state:
+    location = st.session_state.location
+    st.write(f"Konumunuz: {location}")
