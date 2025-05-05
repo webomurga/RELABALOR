@@ -64,7 +64,7 @@ def get_gps_coordinates():
             );
         });
     }
-    
+
     async function main() {
         try {
             const coords = await getLocation();
@@ -73,10 +73,11 @@ def get_gps_coordinates():
             return {type: 'error', data: error};
         }
     }
+
     return main();
     """
-    
-    result = st_js(js_code, key="get_gps", async_=True)
+
+    result = streamlit_js_eval(js_expressions=js_code, key="get_gps", debounce=0)
     return result
 
 def generate_response(location, question):
