@@ -68,7 +68,7 @@ if "location" not in st.session_state:
 
 # === Görsel Yükleme: İlk Mesaj Gibi Göster ===
 if not st.session_state.location:
-    with st.chat_message("user"):
+    with st.chat_message("assistant"):
         st.markdown("📍 Merhaba! Lütfen bulunduğun yerden bir fotoğraf yükleyerek konumunu paylaş.")
 
     uploaded_file = st.file_uploader("Görsel yükle", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
