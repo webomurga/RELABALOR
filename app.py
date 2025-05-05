@@ -1,61 +1,59 @@
 import streamlit as st
-import openai
-import os
 from PIL import Image
-import io
-import base64
+import piexif
+import geopy
+from geopy.geocoders import Nominatim
+import os
 import json
 
 # === API Anahtarı ===
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# openai.api_key = os.getenv("OPENAI_API_KEY")  # OpenAI API artık kullanılmıyor
 
-# === Sistem Prompt'ları ===
-GEOLOCATION_PROMPT = """Bu görseldeki konumu Türkiye'deki bir şehir veya bölge bazında tespit et. 
-Yalnızca şu formatta cevap ver: 
-{"location": "konum_adi", "confidence": "yuksek/orta/dusuk"}"""
-
-DIALECT_PROMPT = """Aşağıdaki kullanıcı mesajına, şu konumun yerel diyalektine uygun şekilde yanıt ver: {location}. 
-Cevabını kültürel özellikleri, turistik bilgileri ve yerel dil varyasyonlarını içerecek şekilde hazırla. 
-Resmi dilbilgisi kuralları kullanma, samimi ve yerel ifadelerle yaz."""
-
-# === Görselden Konum Tahmini ===
-def get_location_from_image(image):
+# === EXIF verisinden Konum Bilgisi Çekme ===
+def get_location_from_exif(image_path):
     try:
-        buffer = io.BytesIO()
-        image.save(buffer, format="PNG")
-        base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": GEOLOCATION_PROMPT},
-                        {
-                            "type": "image_url",
-                            "image_url": f"data:image/png;base64,{base64_image}",
-                        },
-                    ],
-                }
-            ],
-            max_tokens=300,
-        )
-        return json.loads(response.choices[0].message.content)
+        # Görselin EXIF verilerini al
+        exif_dict = piexif.load(image_path)
+        
+        # GPS verisini al
+        if "GPS" in exif_dict:
+            gps_info = exif_dict["GPS"]
+            if gps_info:
+                lat_ref = gps_info.get(piexif.GPSIFD.GPSLatitudeRef)
+                lon_ref = gps_info.get(piexif.GPSIFD.GPSLongitudeRef)
+                lat = gps_info.get(piexif.GPSIFD.GPSLatitude)
+                lon = gps_info.get(piexif.GPSIFD.GPSLongitude)
+                
+                # GPS koordinatlarını derece cinsine çevir
+                if lat and lon:
+                    lat_deg = lat[0][0] / lat[0][1] + lat[1][0] / lat[1][1] / 60 + lat[2][0] / lat[2][1] / 3600
+                    lon_deg = lon[0][0] / lon[0][1] + lon[1][0] / lon[1][1] / 60 + lon[2][0] / lon[2][1] / 3600
+                    
+                    # Koordinatların doğru yönünü almak için
+                    if lat_ref != "N":
+                        lat_deg = -lat_deg
+                    if lon_ref != "E":
+                        lon_deg = -lon_deg
+                    
+                    # Geopy ile koordinatlara ait adresi bul
+                    geolocator = Nominatim(user_agent="relabalor_app")
+                    location = geolocator.reverse((lat_deg, lon_deg), language='tr')
+                    
+                    if location:
+                        return {"location": location.address, "confidence": "yüksek"}
+                    else:
+                        return {"location": None, "confidence": "düşük"}
+                else:
+                    return {"location": None, "confidence": "düşük"}
+        else:
+            return {"location": None, "confidence": "düşük"}
     except Exception as e:
         return {"location": None, "error": str(e)}
 
 # === Yöresel Yanıt ===
 def get_response(prompt, location):
-    enhanced_prompt = DIALECT_PROMPT.format(location=location) + "\n\n" + prompt
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Sen Türkiye'nin yöresel diyalektlerinde konuşan bir rehbersin."},
-            {"role": "user", "content": enhanced_prompt}
-        ]
-    )
-    return response.choices[0].message.content
+    # Yöresel yanıt için API kullanımı burada geçerli değil çünkü EXIF verisiyle doğrudan cevap dönülecek.
+    return f"{location} hakkında sorunuza cevap verdim: {prompt}"
 
 # === Uygulama Başlığı ve Oturum Yönetimi ===
 st.set_page_config(page_title="RELABALOR", layout="centered")
@@ -68,18 +66,25 @@ if "location" not in st.session_state:
 
 # === Görsel Yükleme: İlk Mesaj Gibi Göster ===
 if not st.session_state.location:
-    with st.chat_message("user"):
+    with st.chat_message("assistant"):
         st.markdown("📍 Merhaba! Lütfen bulunduğun yerden bir fotoğraf yükleyerek konumunu paylaş.")
 
     uploaded_file = st.file_uploader("Görsel yükle", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
 
     if uploaded_file:
         image = Image.open(uploaded_file)
-        with st.chat_message("user"):
+        with st.chat_message("assistant"):
             st.image(image, caption="Yüklenen görsel")
+
+        # EXIF verisinden konum bilgisi al
         with st.chat_message("assistant"):
             with st.spinner("Konum tespit ediliyor..."):
-                location_data = get_location_from_image(image)
+                # Yüklenen dosyanın geçici yolu
+                with open("temp_image.jpg", "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+
+                location_data = get_location_from_exif("temp_image.jpg")
+                
                 if location_data.get("location"):
                     st.session_state.location = location_data["location"]
                     st.success(f"📌 Tespit edilen konum: **{st.session_state.location}**")
