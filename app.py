@@ -88,7 +88,7 @@ if uploaded_file:
         context = f"{location_details.get('city', 'Bilinmeyen')} - {location_details.get('state', 'Bilinmeyen')}"
         
         initial_questions = generate_gpt_response(
-            f"{context} konumuna özel 3 tane kültürel ya da turistik soru üret. Madde madde olsun lütfen."
+            f"{context} konumuna özel 3 tane kültürel ya da turistik soru üret. Madde madde olsun lütfen. Yalnızca soruları yaz."
         )
 
         image_bytes = uploaded_file.getvalue()
@@ -98,12 +98,7 @@ if uploaded_file:
             "role": "assistant",
             "content": f"📍 Burası: **{context}**\n\n{initial_questions}"
         })
-
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": "İşte senin yüklediğin fotoğraf 👇"
-        })
-        st.image(uploaded_file, caption="Yüklediğin görsel", use_column_width=True)
+        st.image(uploaded_file, caption="Yüklediğin görsel", use_container_width=True)
     else:
         st.error("Hmm... Bu fotoğrafta konum bilgisi yok gibi 🤷‍♀️")
 
