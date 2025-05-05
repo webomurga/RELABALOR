@@ -69,7 +69,7 @@ def generate_gpt_response(prompt, context=[]):
     return response.choices[0].message['content']
 
 st.set_page_config(
-    page_title="RELABALOR - Neresi Burası?",
+    page_title="RELABALOR - Burası Neresi?",
     page_icon="📸"
 )
 
@@ -93,11 +93,17 @@ if uploaded_file:
 
         image_bytes = uploaded_file.getvalue()
         image_md = f"![Yüklediğin fotoğraf](data:image/jpeg;base64,{image_bytes.hex()})"
-        
+
         st.session_state.messages.append({
             "role": "assistant",
-            "content": f"📍 Şöyle bir yerde çekilmişsin: **{context}**\n\nBunlar da sana özel sorular 🎯:\n\n{initial_questions}"
+            "content": f"📍 Burası: **{context}**\n\n{initial_questions}"
         })
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": "İşte senin yüklediğin fotoğraf 👇"
+        })
+        st.image(uploaded_file, caption="Yüklediğin görsel", use_column_width=True)
     else:
         st.error("Hmm... Bu fotoğrafta konum bilgisi yok gibi 🤷‍♀️")
 
