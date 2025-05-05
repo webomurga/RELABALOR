@@ -6,7 +6,7 @@ from geopy.geocoders import Nominatim
 from PIL import Image
 import io
 import json
-from streamlit_js_eval import st_js
+from streamlit_js_eval import streamlit_js_eval
 
 # OpenAI API konfigürasyonu
 openai.api_key = os.getenv("OPENAI_API_KEY")
