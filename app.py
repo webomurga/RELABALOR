@@ -50,7 +50,7 @@ def get_location_from_image(image):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": "Bu görseldeki konumu Türkiye'deki bir şehir veya bölge bazında tespit et."},
-                    {"type": "image_url", "image_url": f"data:image/png;base64,{img_base64}"}
+                    {"type": "image", "image": {"base64": img_base64}}  # Burada 'image' tipi ve 'base64' verisi kullanılıyor
                 ]
             }]
         )
