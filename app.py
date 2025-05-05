@@ -1,92 +1,78 @@
 import streamlit as st
+from PIL import Image
 import openai
 import os
-from geopy.geocoders import Nominatim
+import json
+import piexif
 
 # OpenAI API configuration
 openai.api_key = os.getenv("OPENAI_API_KEY")
-geolocator = Nominatim(user_agent="RELABALOR_APP")
 
-# Custom HTML + JavaScript component for GPS retrieval
-def get_gps_coordinates():
-    # HTML/JS code to get geolocation
-    gps_code = """
-    <script>
-        async function getLocation() {
-            return new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                    position => resolve([position.coords.latitude, position.coords.longitude]),
-                    error => reject(error.message)
-                );
-            });
-        }
-
-        async function main() {
-            try {
-                const coords = await getLocation();
-                // Sending back the data to Streamlit
-                window.parent.postMessage({type: 'success', data: coords}, '*');
-            } catch (error) {
-                window.parent.postMessage({type: 'error', data: error}, '*');
-            }
-        }
-
-        main();  // Call the main function to get the location
-    </script>
-    """
-
-    # Embed the HTML/JS code into Streamlit app
-    st.components.v1.html(gps_code, height=0)
-
-# Streamlit UI
+# Sistem başlatma
 st.set_page_config(page_title="RELABALOR", page_icon="🌍")
 st.title("Yöresel Rehber 🌍")
 st.markdown("Konumunu algıla, yöresel bilgileri keşfet!")
 
-# Konum belirleme
-st.subheader("Konumunuzu Belirleyin")
+# Fotoğrafı yükleme
+uploaded_file = st.file_uploader("Görsel yükle", type=["jpg", "jpeg", "png"])
 
-# GPS verilerini almak için buton
-if st.button("📡 Konumumu Al"):
-    get_gps_coordinates()
+# EXIF metadata'dan konum bilgisi almayı deneyen fonksiyon
+def get_location_from_exif(image):
+    try:
+        exif_data = piexif.load(image)
+        gps_info = exif_data.get("GPS", {})
+        if gps_info:
+            latitude = gps_info.get(piexif.GPSIFD.GPSLatitude)
+            longitude = gps_info.get(piexif.GPSIFD.GPSLongitude)
+            if latitude and longitude:
+                # Derece, dakika, saniyeyi decimal formata çevirme
+                lat = (latitude[0][0] + latitude[1][0] / 60 + latitude[2][0] / 3600)
+                lon = (longitude[0][0] + longitude[1][0] / 60 + longitude[2][0] / 3600)
+                return lat, lon
+        return None, None
+    except Exception as e:
+        return None, None
 
-# Burada kullanıcının konumunu işlemek için gerekli işlemleri yapabiliriz
-if 'location' in st.session_state:
-    st.subheader(f"🏙️ {st.session_state['location']} Özel Tavsiyeler")
+# Fotoğrafı GPT-4o-mini'ye gönderme ve konumu çözümleme
+def get_location_from_image(image):
+    try:
+        # Fotoğrafı GPT-4o-mini modeline gönderme
+        response = openai.ChatCompletion.create(
+            model="gpt-4.0-mini",  # GPT-4o-mini kullanılacak
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Bu görseldeki konumu Türkiye'deki bir şehir veya bölge bazında tespit et."},
+                    {"type": "image_url", "image_url": f"data:image/png;base64,{image.getvalue().hex()}"}
+                ]
+            }]
+        )
+        
+        # Yanıtı işleyip döndürme
+        location_data = json.loads(response.choices[0].message.content)
+        return location_data
+    except Exception as e:
+        return {"error": str(e)}
 
-    # Konumla ilgili öneri oluşturma
-    suggestion = "Bu konum için 3 maddelik kısa turistik öneri listesi oluştur"
-    suggestions = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "system", "content": "Sen Türkiye'nin yerel şivelerini kullanan bir kültür rehberisin."},
-                  {"role": "user", "content": f"{st.session_state['location']}: {suggestion}"}]
-    )
+# Fotoğraf işlemesi
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, caption='Yüklenen Görsel', use_column_width=True)
+    
+    # EXIF metadata'dan konum verisi çekmeye çalış
+    st.warning("Fotoğrafın EXIF verisi kontrol ediliyor...")
+    lat, lon = get_location_from_exif(uploaded_file)
 
-    for line in suggestions.choices[0].message.content.split('\n'):
-        if line.strip():
-            with st.expander(line.strip()):
-                details = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "system", "content": "Sen Türkiye'nin yerel şivelerini kullanan bir kültür rehberisin."},
-                              {"role": "user", "content": f"{line.strip()} hakkında detaylı bilgi ver"}]
-                )
-                st.write(details.choices[0].message.content)
-
-# Handle GPS success or error
-st.components.v1.html("""
-<script>
-    window.addEventListener('message', function(event) {
-        if (event.data.type === 'success') {
-            const coords = event.data.data;
-            window.parent.postMessage({type: 'location', data: coords}, '*');
-        } else if (event.data.type === 'error') {
-            window.parent.postMessage({type: 'location_error', data: event.data.data}, '*');
-        }
-    });
-</script>
-""", height=0)
-
-# Implement logic for handling GPS response in Python
-if 'location' in st.session_state:
-    location = st.session_state.location
-    st.write(f"Konumunuz: {location}")
+    if lat and lon:
+        st.success(f"Fotoğrafın EXIF verisinden konum tespit edildi: Latitude {lat}, Longitude {lon}")
+        st.session_state.location = f"Lat: {lat}, Lon: {lon}"
+    else:
+        # Eğer EXIF verisinde konum yoksa, GPT-4o-mini'ye gönder
+        st.warning("EXIF verisinde konum bulunamadı, GPT-4o-mini ile çözümleme yapılıyor...")
+        location_data = get_location_from_image(uploaded_file)
+        
+        if "location" in location_data:
+            st.success(f"Konum Tespit Edildi: {location_data['location']}")
+            st.session_state.location = location_data['location']
+        else:
+            st.error(f"Konum tespiti yapılamadı: {location_data.get('error', 'Bilinmeyen hata')}")
