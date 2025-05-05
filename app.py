@@ -68,13 +68,13 @@ def generate_gpt_response(prompt, context=[]):
     )
     return response.choices[0].message['content']
 
-st.title("📸 RELABALOR - Burası Neresi?")
-st.subheader("Fotoğrafını yükle, neredesin söyleyelim! Üstüne bir de sana özel sorularla muhabbet edelim 😎")
-
 st.set_page_config(
     page_title="RELABALOR - Neresi Burası?",
     page_icon="📸"
 )
+
+st.title("📸 RELABALOR - Burası Neresi?")
+st.subheader("Fotoğrafını yükle, neredesin söyleyelim! Üstüne bir de sana özel sorularla muhabbet edelim 😎")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
