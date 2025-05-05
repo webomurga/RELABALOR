@@ -106,7 +106,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("Ne merak ettin? Ya da yukarıdaki sorulardan birine dalalım mı? 🧐"):
+if prompt := st.chat_input("Özellikle merak ettiğin bir şey var mı? 🧐"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     response = generate_gpt_response(
