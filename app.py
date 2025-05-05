@@ -42,7 +42,7 @@ def generate_gpt_response(prompt, context=[]):
     ]
     
     response = openai.ChatCompletion.create(
-        model="gpt-4-mini",  # Gerçek model adını kullanın
+        model="gpt-4o-mini",  # Gerçek model adını kullanın
         messages=messages,
         temperature=0.7,
         max_tokens=500
