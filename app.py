@@ -3,8 +3,13 @@ import openai
 from PIL import Image
 import exifread
 import os
+import tempfile
 from geopy.geocoders import Nominatim
 from io import BytesIO
+from picarta import Picarta
+
+PICARTA_API_TOKEN = os.getenv("PICARTA_API_TOKEN")
+picarta_localizer = Picarta(PICARTA_API_TOKEN)
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 geolocator = Nominatim(user_agent="RELABALOR")
@@ -61,6 +66,42 @@ def get_location_details(latlon):
     except Exception:
         return "Bilinmeyen"
 
+def get_location_from_picarta(image_file):
+    try:
+        # Görseli RGB'ye dönüştür
+        image = Image.open(image_file)
+        image = image.convert("RGB")  # RGBA'dan RGB'ye dönüştür
+
+        # Geçici dosya oluşturuyoruz, temp dosyasının otomatik silinmesi için delete=True kullanıyoruz
+        with tempfile.NamedTemporaryFile(suffix=".jpg", mode='wb', delete=False) as tmp:
+            image.save(tmp, format='JPEG')  # JPEG formatında kaydediyoruz
+            tmp.flush()  # Dosyayı flush et, çünkü Picarta'nın okuması için dosyanın diskten gelmesi gerekir
+
+            # Picarta'ya geçici dosyayı gönderiyoruz
+            result = picarta_localizer.localize(img_path=tmp.name)
+
+        # Sonuçları kontrol et
+        if result:
+            city = result.get("city", "Bilinmeyen")
+            province = result.get("province", "Bilinmeyen")
+            country = result.get("ai_country", "Bilinmeyen")
+            lat = result.get("ai_lat")
+            lon = result.get("ai_lon")
+
+            if lat and lon:
+                location_text = f"{city}, {province}, {country}"
+                return {
+                    "latlon": f"{lat:.6f}, {lon:.6f}",
+                    "location_text": location_text,
+                    "confidence": result.get("confidence", 0),
+                    "full_result": result
+                }
+
+        return None
+    except Exception as e:
+        print(f"Picarta hatası: {e}")
+        return None
+
 def ask_gpt(prompt, messages=None):
     base = [{"role": "system", "content": "Sen Türkiye'nin bölgelerini çok iyi tanıyan, yerel kültüre hakim, samimi bir asistansın."}]
     if messages:
@@ -90,6 +131,11 @@ if uploaded_file and not st.session_state.initialized:
     st.image(uploaded_file, caption="📸 Yüklediğin fotoğraf", use_container_width=True)
 
     latlon = get_location_from_exif(uploaded_file)
+
+    if not latlon:
+        with st.spinner("EXIF verisi bulunamadı, görsel içeriğe göre konum tahmini yapılıyor... 📍"):
+            latlon = get_location_from_picarta(uploaded_file)
+
     if latlon:
         location_text = get_location_details(latlon)
         st.session_state.location_context = location_text
