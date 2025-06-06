@@ -25,7 +25,6 @@ st.markdown("""
         text-align: left !important;
         justify-content: flex-start !important;
         display: flex !important;
-        width: 100%;
         white-space: normal;
         word-wrap: break-word;
     }
