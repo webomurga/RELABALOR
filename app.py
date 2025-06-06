@@ -186,7 +186,16 @@ if uploaded_file and not st.session_state.initialized:
             initialize_chat(location_text, dialect_text)
         st.session_state.initialized = True
     else:
-        st.error("❌ Fotoğrafta konum bilgisi bulunamadı. Başka bir fotoğraf dene istersen.")
+        st.warning("📍 Fotoğraftan konum bilgisi alınamadı. Aşağıya tahmini yer adını gir lütfen:")
+        st.session_state.manual_location = st.text_input("Yer adı (örnek: Safranbolu, Karabük)", key="manual_location_input")
+        if st.session_state.manual_location:
+            st.session_state.location_context = st.session_state.manual_location
+            dialect_text = get_dialect_text_for_location(st.session_state.manual_location, dialects)
+            st.session_state.dialect_text = dialect_text
+            with st.spinner("Girdiğin konuma göre bilgi hazırlanıyor... ⏳"):
+                initialize_chat(st.session_state.manual_location, dialect_text)
+            st.session_state.initialized = True
+            st.rerun()
 
 for role, msg in st.session_state.chat:
     with st.chat_message(role):
