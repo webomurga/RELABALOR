@@ -145,7 +145,7 @@ def ask_gpt(prompt, messages=None, dialect_text=None):
     base.append({"role": "user", "content": prompt})
 
     response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=base,
         temperature=0.7,
         max_tokens=500
